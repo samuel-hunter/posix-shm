@@ -15,4 +15,19 @@
                 :pathname "spec"
                 :components ((:static-file "shm.h")))
                (:file "ffi")
-               (:file "shm")))
+               (:file "shm"))
+
+  :in-order-to ((asdf:test-op (asdf:test-op :posix-shm/test))))
+
+(asdf:defsystem #:posix-shm/test
+  :description "Test suite for posix-shm"
+  :author "Samuel Hunter"
+  :license "BSD 3-Clause"
+  :version "0.0.1"
+
+  :depends-on (#:posix-shm
+               #:parachute)
+  :components ((:file "test"))
+
+  :perform (asdf:test-op (op c)
+             (uiop:symbol-call :parachute :test :xyz.shunter.posix-shm.test)))
