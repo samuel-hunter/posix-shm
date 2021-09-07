@@ -118,6 +118,8 @@
         :finally (return (concatenate 'string "/xyz.shunter.shm-" suffix))))
 
 (defun %shm-open* (oflag mode attempts)
+  (setf mode
+        (logior mode ffi:+o-creat+ ffi:+o-excl+))
   (loop :repeat attempts
         :for name := (random-name)
         :for fd := (ffi:shm-open name oflag mode)
