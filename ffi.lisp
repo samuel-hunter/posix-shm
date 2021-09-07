@@ -1,16 +1,16 @@
-;;; ffi.lisp - shm-buffers foreign function interface
+;;; ffi.lisp - shm foreign function interface
 ;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
 ;;; BSD 3-Clause
 
-(defpackage #:xyz.shunter.shm-buffers.ffi
+(defpackage #:xyz.shunter.shm.ffi
   (:export #:*errno*))
 
-(in-package #:xyz.shunter.shm-buffers.ffi)
+(in-package #:xyz.shunter.shm.ffi)
 
 
 
-(autowrap:c-include '(#:shm-buffers #:spec "shm.h")
-                    :spec-path '(#:shm-buffers #:spec)
+(autowrap:c-include '(#:shm #:spec "shm.h")
+                    :spec-path '(#:shm #:spec)
                     :exclude-definitions (".*")
                     :include-definitions ("size_t"
                                           "mode_t"
@@ -20,17 +20,21 @@
 
                                           "^O_*" ;; open flags
                                           "^S_*" ;; permission bits
-                                          "^PROT_*" ;; map permissions
-                                          "^MAP_*" ;; map flags
+                                          "^PROT_*" ;; map protections
+                                          "^MAP_SHARED$"
                                           "^EEXIST$"
                                           "^EINTR$"
 
-                                          "^shm_*"
-                                          "^mmap$"
-                                          "^munmap$"
+                                          "^shm_open$"
                                           "^ftruncate$"
-                                          "close"
-                                          "^errno$"
+                                          "^mmap$"
+                                          "^munmap%"
+                                          "^shm_unlink$"
+                                          "^close$"
+                                          "^fstat$"
+                                          "^fchown$"
+                                          "^fchmod$"
+
                                           "^strerror$"))
 
 (cffi:defcvar "errno" :int)

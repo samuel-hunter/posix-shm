@@ -1,8 +1,8 @@
-;;; shm-buffers.lisp - POSIX shared memory utilities
+;;; shm.lisp - POSIX shared memory
 
-(defpackage #:xyz.shunter.shm-buffers
-  (:nicknames #:shm-buffers)
-  (:local-nicknames (#:ffi #:xyz.shunter.shm-buffers.ffi)
+(defpackage #:xyz.shunter.shm
+  (:nicknames #:shm)
+  (:local-nicknames (#:ffi #:xyz.shunter.shm.ffi)
                     (#:a #:alexandria))
   (:use #:cl)
   (:export #:shm-buffer
@@ -16,7 +16,7 @@
            #:delete-shm
            #:with-shm-buffer))
 
-(in-package #:xyz.shunter.shm-buffers)
+(in-package #:xyz.shunter.shm)
 
 
 
@@ -113,7 +113,7 @@
         :collect (code-char (+ #x41 (random 26)
                                (* #x20 (random 2))))
           :into suffix
-        :finally (return (concatenate 'string "/shm-buffers-" suffix))))
+        :finally (return (concatenate 'string "/xyz.shunter.shm-" suffix))))
 
 (defun shm-open* (oflag mode attempts)
   (assert (= (logior ffi:+o-creat+ ffi:+o-excl+)

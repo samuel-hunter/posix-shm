@@ -1,9 +1,9 @@
-;;; shm-buffers.asd - shm-buffers system definition
+;;; shm.asd - shm system definition
 ;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
 ;;; BSD 3-Clause
 
-(asdf:defsystem #:shm-buffers
-  :description "POSIX shared memory buffers"
+(asdf:defsystem #:shm
+  :description "POSIX shared memory"
   :author "Samuel Hunter"
   :license  "BSD 3-Clause"
   :version "0.0.1"
@@ -15,4 +15,4 @@
                 :pathname "spec"
                 :components ((:static-file "shm.h")))
                (:file "ffi")
-               (:file "shm-buffers")))
+               (:file "shm")))
