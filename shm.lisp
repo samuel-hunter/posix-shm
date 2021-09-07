@@ -6,6 +6,7 @@
                     (#:a #:alexandria))
   (:use #:cl)
   (:export #:shm-open
+           #:shm-open*
            #:shm-ftruncate
            #:mmap
            #:munmap
@@ -84,7 +85,7 @@
           :none ffi:+prot-none+)))
 
 (defparameter +map-failed+
-  (1- (ash 1 (* 4 (cffi:foreign-type-size :pointer)))))
+  (1- (ash 1 (* 8 (cffi:foreign-type-size :pointer)))))
 
 (defun flag (keyword hash-table)
   (or (gethash keyword hash-table)
@@ -117,8 +118,6 @@
         :finally (return (concatenate 'string "/xyz.shunter.shm-" suffix))))
 
 (defun %shm-open* (oflag mode attempts)
-  (assert (= (logior ffi:+o-creat+ ffi:+o-excl+)
-             (logand oflag (logior ffi:+o-creat+ ffi:+o-excl+))))
   (loop :repeat attempts
         :for name := (random-name)
         :for fd := (ffi:shm-open name oflag mode)
@@ -131,7 +130,7 @@
           (raise-shm-error)))
 
 (defun shm-open* (&key open-flags permissions (attempts 100))
-  (let ((oflag (to-flags open-flags +open-flags+))
+  (let ((oflag (to-flags (list* :create :exclusive open-flags) +open-flags+))
         (mode (to-flags permissions +permissions+)))
     (%shm-open* oflag mode attempts)))
 
@@ -149,7 +148,7 @@
 
 (defun mmap (ptr length protections fd offset)
   (let ((prot (to-flags protections +protections+)))
-    (mmap ptr length prot fd offset)))
+    (%mmap ptr length prot fd offset)))
 
 (defun munmap (ptr length)
   (when (minusp (ffi:munmap ptr length))
@@ -196,16 +195,18 @@
        (progn ,@body)
        (shm-close ,var))))
 
-(defmacro with-mmap ((var length protections fd offset) &body body)
+(defmacro with-mmap ((var ptr length protections fd offset) &body body)
   (a:once-only (length)
-    `(let ((,var (mmap ,length ,protections ,fd ,offset)))
+    `(let ((,var (mmap ,ptr ,length ,protections ,fd ,offset)))
        (unwind-protect
-         (progn ,@body))
-       (munmap ,var ,length))))
+         (progn ,@body)
+         (munmap ,var ,length)))))
 
-(defmacro with-mmapped-shm ((fd mmap shm-options (length protections offset)) &body body)
-  (a:once-only (length)
+(defmacro with-mmapped-shm ((fd mmap shm-options (ptr length protections offset)
+                                &key (truncate t))
+                            &body body)
+  (a:once-only (length offset)
     `(with-open-shm (,fd ,@shm-options)
-       (shm-ftruncate ,fd ,length)
-       (with-mmap (,mmap ,length ,protections ,fd ,offset)
+       ,(when truncate `(shm-ftruncate ,fd (+ ,length ,offset)))
+       (with-mmap (,mmap ,ptr ,length ,protections ,fd ,offset)
          ,@body))))
