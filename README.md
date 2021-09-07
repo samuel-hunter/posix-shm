@@ -75,7 +75,7 @@ TODO
 
 TODO
 
-### [Function] **posix-ftruncate** *fd size* => `(values)`
+### [Function] **shm-ftruncate** *fd size* => `(values)`
 
 TODO
 
@@ -94,7 +94,7 @@ TODO
 
 TODO
 
-### [Function] **close** *fd* => `(values)`
+### [Function] **shm-close** *fd* => `(values)`
 
 TODO
 
