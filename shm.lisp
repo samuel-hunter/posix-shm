@@ -36,11 +36,13 @@
           :rdwr ffi:+o-rdwr+
           :creat ffi:+o-creat+
           :excl ffi:+o-excl+
+          :trunc ffi:+o-trunc+
 
           :read-only ffi:+o-rdonly+
           :read-write ffi:+o-rdwr+
           :create ffi:+o-creat+
-          :exclusive ffi:+o-excl+)))
+          :exclusive ffi:+o-excl+
+          :truncate ffi:+o-trunc+)))
 
 (defparameter +permissions+
   (a:plist-hash-table
@@ -103,8 +105,8 @@
         fd)))
 
 (defun shm-open (name &key open-flags permissions)
-  (let ((oflag (to-flags +open-flags+ open-flags))
-        (mode (to-flags +permissions+ permissions)))
+  (let ((oflag (to-flags open-flags +open-flags+))
+        (mode (to-flags permissions +permissions+)))
     (%shm-open name oflag mode)))
 
 (defun random-name ()
@@ -129,8 +131,8 @@
           (raise-shm-error)))
 
 (defun shm-open* (&key open-flags permissions (attempts 100))
-  (let ((oflag (to-flags +open-flags+ open-flags))
-        (mode (to-flags +permissions+ permissions)))
+  (let ((oflag (to-flags open-flags +open-flags+))
+        (mode (to-flags permissions +permissions+)))
     (%shm-open* oflag mode attempts)))
 
 (defun shm-ftruncate (fd size)
@@ -146,7 +148,7 @@
         ptr)))
 
 (defun mmap (ptr length protections fd offset)
-  (let ((prot (to-flags +protections+ protections)))
+  (let ((prot (to-flags protections +protections+)))
     (mmap ptr length prot fd offset)))
 
 (defun munmap (ptr length)
@@ -185,7 +187,7 @@
   (values))
 
 (defun fchmod (fd permissions)
-  (let ((mode (to-flags +permissions+ permissions)))
+  (let ((mode (to-flags permissions +permissions+)))
     (%fchmod fd mode)))
 
 (defmacro with-open-shm ((var &rest options) &body body)
