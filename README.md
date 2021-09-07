@@ -101,3 +101,15 @@ TODO
 ### [Function] **fstat** *fd* => *stat*
 
 TODO
+
+### [Macro] **with-open-shm** *(var &rest options) &body body*
+
+TODO
+
+### [Macro] **with-mmap** *(var &rest options) &body body*
+
+TODO
+
+### [Macro] **with-mmapped-shm** *(shm mmap shm-options (length protections offset)) &body body*
+
+TODO
