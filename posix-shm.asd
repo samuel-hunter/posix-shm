@@ -8,6 +8,11 @@
   :license  "BSD 3-Clause"
   :version "0.0.1"
 
+  :homepage "https://sr.ht/~shunter/posix-shm/"
+  :source-control (:git "https://git.sr.ht/~shunter/posix-shm")
+  :bug-tracker "https://todo.sr.ht/~shunter/posix-shm"
+  :mailto "\~\s\h\u\n\t\e\r\/\p\u\b\l\i\c\-\i\n\b\o\x\@\l\i\s\t\s\.\s\r\.\h\t"
+
   :depends-on (#:alexandria
                #:cl-autowrap)
   :serial t
