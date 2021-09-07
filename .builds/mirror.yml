@@ -1,0 +1,12 @@
+image: alpine/edge
+environment:
+  mirror: git@github.com:samuel-hunter/posix-shm.git
+  GIT_SSH_COMMAND: ssh -o StrictHostKeyChecking=no
+secrets:
+  - 1b092c96-6efe-493f-9837-deaf34f01cb9
+sources:
+  - https://git.sr.ht/~shunter/posix-shm
+tasks:
+  - updatemirror: |
+      cd posix-shm
+      git push --mirror "$mirror"
