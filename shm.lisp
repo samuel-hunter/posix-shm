@@ -5,31 +5,27 @@
   (:local-nicknames (#:ffi #:xyz.shunter.shm.ffi)
                     (#:a #:alexandria))
   (:use #:cl)
-  (:export #:shm-buffer
-           #:shm-buffer-p
-           #:shm-buffer-type
-           #:shm-buffer-fd
-           #:shm-buffer-ptr
-           #:shm-aref
-           #:open-shm-buffer
-           #:close-shm-buffer
-           #:delete-shm
-           #:with-shm-buffer))
+  (:export #:shm-open
+           #:shm-ftruncate
+           #:mmap
+           #:munmap
+           #:shm-unlink
+           #:shm-close
+           #:fstat
+           #:fchown
+           #:fchmod))
 
 (in-package #:xyz.shunter.shm)
 
 
 
-(defstruct (shm-buffer (:copier nil))
-  type length fd ptr)
-
-(define-condition posix-error (error)
-  ((while :initarg :while)
-   (message :initarg :message))
+(define-condition shm-error (error)
+  ((errno :initarg :errno))
   (:report (lambda (c s)
-             (format s "Error while ~A: ~A"
-                     (slot-value c 'while)
-                     (slot-value c 'message)))))
+             (princ (ffi:strerror (slot-value c 'errno)) s))))
+
+(defun raise-shm-error ()
+  (error 'shm-error :errno ffi:*errno*))
 
 (defparameter +open-flags+
   (a:plist-hash-table
@@ -82,31 +78,31 @@
           :write ffi:+prot-write+
           :none ffi:+prot-none+)))
 
-(defparameter +mmap-types+
-  (a:plist-hash-table
-    (list :shared ffi:+map-shared+
-          :private ffi:+map-private+)))
-
 (defparameter +map-failed+
   (1- (ash 1 (* 4 (cffi:foreign-type-size :pointer)))))
 
+(defun flag (keyword hash-table)
+  (or (gethash keyword hash-table)
+      (error "Cannot find flag for keyword ~S" keyword)))
+
 (defun to-flags (keywords hash-table)
-  (reduce #'logior (mapcar (a:rcurry #'gethash hash-table) keywords)))
+  (reduce #'logior (mapcar (a:rcurry #'flag hash-table) keywords)))
 
-(defun delete-shm (name)
-  (when (minusp (ffi:shm-unlink name))
-    (error 'posix-error :while "unlinking shm"
-        :message (ffi:strerror ffi:*errno*)))
+(defun compile-flags-if-possible (form flag-table environment)
+  (if (constantp form environment)
+      (to-flags (eval form) flag-table)
+      form))
 
-  (values))
-
-(defun shm-open (name oflag mode)
+(defun %shm-open (name oflag mode)
   (let ((fd (ffi:shm-open name oflag mode)))
     (if (minusp fd)
-        (error 'posix-error
-               :while "opening shm"
-               :message (ffi:strerror ffi:*errno*))
+        (raise-shm-error)
         fd)))
+
+(defun shm-open (name &key open-flags permissions)
+  (let ((oflag (to-flags +open-flags+ open-flags))
+        (mode (to-flags +permissions+ permissions)))
+    (%shm-open name oflag mode)))
 
 (defun random-name ()
   (loop :repeat 10
@@ -115,108 +111,76 @@
           :into suffix
         :finally (return (concatenate 'string "/xyz.shunter.shm-" suffix))))
 
-(defun shm-open* (oflag mode attempts)
+(defun %shm-open* (oflag mode attempts)
   (assert (= (logior ffi:+o-creat+ ffi:+o-excl+)
              (logand oflag (logior ffi:+o-creat+ ffi:+o-excl+))))
   (loop :repeat attempts
         :for name := (random-name)
         :for fd := (ffi:shm-open name oflag mode)
-        :when (plusp fd)
-          :do (delete-shm name)
+        :unless (minusp fd)
+          :do (shm-unlink name)
               (return fd)
         :unless (= ffi:*errno* ffi:+eexist+)
-          :do (error 'posix-error
-                     :while "opening shm"
-                     :message (ffi:strerror ffi:*errno*))))
+          :do (raise-shm-error)
+        :finally ;; out of attempts
+          (raise-shm-error)))
 
-(defun close-fd (fd)
-  (when (minusp (ffi:close fd))
-    (error 'posix-error
-           :while "closing shm"
-           :message (ffi:strerror ffi:*errno*)))
-  (values))
+(defun shm-open* (&key open-flags permissions (attempts 100))
+  (let ((oflag (to-flags +open-flags+ open-flags))
+        (mode (to-flags +permissions+ permissions)))
+    (%shm-open* oflag mode attempts)))
 
-(defun allocate-shm (fd size)
+(defun shm-ftruncate (fd size)
   (loop :while (minusp (ffi:ftruncate fd size))
         :unless (= ffi:*errno* ffi:+eintr+)
-          :do (ffi:close fd)
-              (error 'posix-error
-                     :while "sizing buffer"
-                     :message (ffi:strerror ffi:*errno*)))
-  fd)
+          :do (raise-shm-error))
+  (values))
 
-(defun make-shm-buffer* (fd type count prot flags)
-  (let* ((size (* (cffi:foreign-type-size type)
-                  count))
-         (ptr (ffi:mmap (cffi:null-pointer)
-                       size prot flags (allocate-shm fd size) 0)))
-    (when (= (cffi:pointer-address ptr) +map-failed+)
-      (ffi:close fd)
-      (error 'posix-error
-             :while "memory-mapping shm"
-             :message (ffi:strerror ffi:*errno*)))
-    (make-shm-buffer :type type :length count :fd fd :ptr ptr)))
+(defun %mmap (ptr length prot fd offset)
+  (let ((ptr (ffi:mmap ptr length prot ffi:+map-shared+ fd offset)))
+    (if (= +map-failed+ (cffi:pointer-address ptr))
+        (raise-shm-error)
+        ptr)))
 
-(defun open-shm-buffer (name type count &key open-flags permissions protections mmap-type)
-  (let ((oflag (to-flags open-flags +open-flags+))
-        (mode (to-flags permissions +permissions+))
-        (prot (to-flags protections +protections+))
-        (flags (gethash mmap-type +mmap-types+)))
-    (make-shm-buffer*
-      (shm-open name oflag mode)
-      type count prot flags)))
+(defun mmap (ptr length protections fd offset)
+  (let ((prot (to-flags +protections+ protections)))
+    (mmap ptr length prot fd offset)))
 
-(defun open-shm-buffer* (type count &key (attempts 100) open-flags permissions protections mmap-type)
-  (let ((oflag (to-flags open-flags +open-flags+))
-        (mode (to-flags permissions +permissions+))
-        (prot (to-flags protections +protections+))
-        (flags (gethash mmap-type +mmap-types+)))
-    (make-shm-buffer*
-      (shm-open* oflag mode attempts)
-      type count prot flags)))
-
-(defun close-shm-buffer (shm-buffer)
-  (when (minusp (ffi:munmap (shm-buffer-ptr shm-buffer)
-                            (* (cffi:foreign-type-size
-                                 (shm-buffer-type shm-buffer))
-                               (shm-buffer-length shm-buffer))))
-    (error 'posix-error :while "unmapping shm"
-           :message (ffi:strerror ffi:*errno*)))
-
-  (close-fd (shm-buffer-fd shm-buffer))
-  (setf (shm-buffer-fd shm-buffer) -1
-        (shm-buffer-ptr shm-buffer) (cffi:null-pointer)
-        (shm-buffer-length shm-buffer) 0)
+(defun munmap (ptr length)
+  (when (minusp (ffi:munmap ptr length))
+    (raise-shm-error))
 
   (values))
 
-(defmacro with-shm-buffer ((var &rest options) &body body)
-  `(let ((,var (open-shm-buffer ,@options)))
-     (unwind-protect (progn ,@body)
-       (close-shm-buffer ,var))))
+(defun shm-unlink (name)
+  (when (minusp (ffi:shm-unlink name))
+    (raise-shm-error))
 
-(defmacro with-shm-buffer* ((var &rest options) &body body)
-  `(let ((,var (open-shm-buffer* ,@options)))
-     (unwind-protect (progn ,@body)
-       (close-shm-buffer ,var))))
+  (values))
 
-
+(defun shm-close (fd)
+  (when (minusp (ffi:close fd))
+    (raise-shm-error))
 
-(defun shm-aref (shm-buffer index)
-  (assert (< index (shm-buffer-length shm-buffer))
-          (index)
-          "Invalid index ~D for ~S, should be a non-negative integer below ~D."
-          index 'shm-buffer (shm-buffer-length shm-buffer))
-  (cffi:mem-aref (shm-buffer-ptr shm-buffer)
-                 (shm-buffer-type shm-buffer)
-                 index))
+  (values))
 
-(defun (setf shm-aref) (new-value shm-buffer index)
-  (assert (< index (shm-buffer-length shm-buffer))
-          (index)
-          "Invalid index ~D for ~S, should be a non-negative integer below ~D."
-          index 'shm-buffer (shm-buffer-length shm-buffer))
-  (setf (cffi:mem-aref (shm-buffer-ptr shm-buffer)
-                       (shm-buffer-type shm-buffer)
-                       index)
-        new-value))
+(defun fstat (fd)
+  (declare (ignore fd))
+  (error "TODO"))
+
+;; XXX: cffi can't find fchown().
+;(defun fchown (fd owner-id group-id)
+;  (when (minusp (ffi:fchown fd owner-id group-id))
+;    (raise-shm-error))
+;
+;  (values))
+
+(defun %fchmod (fd mode)
+  (when (minusp (ffi:fchmod fd mode))
+    (raise-shm-error))
+
+  (values))
+
+(defun fchmod (fd permissions)
+  (let ((mode (to-flags +permissions+ permissions)))
+    (%fchmod fd mode)))

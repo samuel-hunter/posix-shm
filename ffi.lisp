@@ -3,6 +3,9 @@
 ;;; BSD 3-Clause
 
 (defpackage #:xyz.shunter.shm.ffi
+  (:import-from #:cl
+                #:defpackage
+                #:in-package)
   (:export #:*errno*))
 
 (in-package #:xyz.shunter.shm.ffi)
@@ -12,11 +15,21 @@
 (autowrap:c-include '(#:shm #:spec "shm.h")
                     :spec-path '(#:shm #:spec)
                     :exclude-definitions (".*")
-                    :include-definitions ("size_t"
-                                          "mode_t"
-                                          "off_t"
-                                          "__LOFF_T"
-                                          "__OFF64_T"
+                    :include-definitions ("^blkcnt_t"
+                                          "^blksize_t"
+                                          "^dev_t"
+                                          "^gid_t"
+                                          "^ino_t"
+                                          "^loff_t"
+                                          "^mode_t"
+                                          "^nlink_t"
+                                          "^off64_t"
+                                          "^off_t"
+                                          "^size_t"
+                                          "^stat"
+                                          "^uid_t"
+                                          "^time_t"
+                                          "^__syscall_*"
 
                                           "^O_*" ;; open flags
                                           "^S_*" ;; permission bits
@@ -28,7 +41,7 @@
                                           "^shm_open$"
                                           "^ftruncate$"
                                           "^mmap$"
-                                          "^munmap%"
+                                          "^munmap$"
                                           "^shm_unlink$"
                                           "^close$"
                                           "^fstat$"
