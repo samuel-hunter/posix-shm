@@ -2,34 +2,22 @@
 ;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
 ;;; BSD 3-Clause
 
-(defpackage #:xyz.shunter.shm.ffi
+(defpackage #:xyz.shunter.posix-shm.ffi
   (:import-from #:cl
                 #:defpackage
                 #:in-package)
   (:export #:*errno*))
 
-(in-package #:xyz.shunter.shm.ffi)
+(in-package #:xyz.shunter.posix-shm.ffi)
 
 
 
-(autowrap:c-include '(#:shm #:spec "shm.h")
-                    :spec-path '(#:shm #:spec)
+(autowrap:c-include '(#:posix-shm #:spec "shm.h")
+                    :spec-path '(#:posix-shm #:spec)
                     :exclude-definitions (".*")
-                    :include-definitions ("^blkcnt_t"
-                                          "^blksize_t"
-                                          "^dev_t"
-                                          "^gid_t"
-                                          "^ino_t"
-                                          "^loff_t"
-                                          "^mode_t"
-                                          "^nlink_t"
-                                          "^off64_t"
-                                          "^off_t"
-                                          "^size_t"
-                                          "^stat"
-                                          "^uid_t"
-                                          "^time_t"
-                                          "^__syscall_*"
+                    :include-definitions ("_t$"
+                                          "^__"
+                                          "stat"
 
                                           "^O_*" ;; open flags
                                           "^S_*" ;; permission bits

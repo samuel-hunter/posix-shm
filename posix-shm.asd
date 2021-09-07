@@ -1,8 +1,8 @@
-;;; shm.asd - shm system definition
+;;; posix-shm.asd - posix-shm system definition
 ;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
 ;;; BSD 3-Clause
 
-(asdf:defsystem #:shm
+(asdf:defsystem #:posix-shm
   :description "POSIX shared memory"
   :author "Samuel Hunter"
   :license  "BSD 3-Clause"

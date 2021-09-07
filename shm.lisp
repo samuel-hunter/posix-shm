@@ -1,8 +1,8 @@
 ;;; shm.lisp - POSIX shared memory
 
-(defpackage #:xyz.shunter.shm
-  (:nicknames #:shm)
-  (:local-nicknames (#:ffi #:xyz.shunter.shm.ffi)
+(defpackage #:xyz.shunter.posix-shm
+  (:nicknames #:posix-shm)
+  (:local-nicknames (#:ffi #:xyz.shunter.posix-shm.ffi)
                     (#:a #:alexandria))
   (:use #:cl)
   (:export #:shm-open
@@ -15,7 +15,7 @@
            #:fchown
            #:fchmod))
 
-(in-package #:xyz.shunter.shm)
+(in-package #:xyz.shunter.posix-shm)
 
 
 
