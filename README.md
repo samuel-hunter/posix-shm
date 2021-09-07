@@ -1,4 +1,5 @@
-# shm
+# posix-shm
+[![builds.sr.ht status](https://builds.sr.ht/~shunter/posix-shm/commits/test.yml.svg)](https://builds.sr.ht/~shunter/posix-shm/commits/test.yml)
 
 POSIX shared memory for Common Lisp.
 
