@@ -13,7 +13,10 @@
            #:shm-close
            #:fstat
            #:fchown
-           #:fchmod))
+           #:fchmod
+           #:with-open-shm
+           #:with-mmap
+           #:with-mmapped-shm))
 
 (in-package #:xyz.shunter.posix-shm)
 
@@ -184,3 +187,23 @@
 (defun fchmod (fd permissions)
   (let ((mode (to-flags +permissions+ permissions)))
     (%fchmod fd mode)))
+
+(defmacro with-open-shm ((var &rest options) &body body)
+  `(let ((,var (shm-open ,@options)))
+     (unwind-protect
+       (progn ,@body)
+       (shm-close ,var))))
+
+(defmacro with-mmap ((var length protections fd offset) &body body)
+  (a:once-only (length)
+    `(let ((,var (mmap ,length ,protections ,fd ,offset)))
+       (unwind-protect
+         (progn ,@body))
+       (munmap ,var ,length))))
+
+(defmacro with-mmapped-shm ((fd mmap shm-options (length protections offset)) &body body)
+  (a:once-only (length)
+    `(with-open-shm (,fd ,@shm-options)
+       (shm-ftruncate ,fd ,length)
+       (with-mmap (,mmap ,length ,protections ,fd ,offset)
+         ,@body))))
