@@ -86,6 +86,7 @@
         (errno ffi:*errno*))
     (cond
       ((>= fd 0) fd)
+      ;; shm_open failed because the object already exists.
       ((= errno ffi:+EEXIST+)
        (ecase if-exists
          (:error (raise-shm-error))
@@ -93,6 +94,7 @@
          (:supersede
            (shm-unlink name)
            (%shm-open name oflag mode :error if-does-not-exist))))
+      ;; shm_open failed because the object doesn't exist.
       ((= errno ffi:+ENOENT+)
        (ecase if-does-not-exist
          (:error (raise-shm-error))
@@ -163,7 +165,9 @@
         ptr)))
 
 (defun mmap (ptr length protections fd offset)
-  (let ((prot (to-flags protections +protections+)))
+  (let ((prot (if protections
+                  (to-flags protections +protections+)
+                  ffi:+prot-none+)))
     (%mmap ptr length prot fd offset)))
 
 (defun munmap (ptr length)
