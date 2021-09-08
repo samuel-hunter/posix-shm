@@ -5,14 +5,14 @@ Common Lisp bindings to the POSIX shared memory API.
 
 This library is currently in its embryonic stages, and is not yet ready for public consumption.
 
-According to the Linux Programmer's Manual, the POSIX shared memory API (or `shm`) "allows processes to communicate information by sharing a region of memory." -- `shm_overview(7)`.
-This library provides a slim wrapper over the POSIX shm interface.
+The POSIX shared memory (or `shm`) API "allows processes to communicate information by sharing a region of memory." (`shm_overview(7)`).
+This library provides a wrapper over the POSIX shm API, providing an interface more comfortable for lispers.
 
 Features include:
 
-- `shm_open`, `shm_unlink`, `mmap`
-- A utility function, `shm-open*`, for opening anonymous shm objects that are immediately unlinked.
+- Bindings for `shm_open`, `ftruncate`, `mmap`, `munmap`, `shm_unlink`, and `close`.
 - `shm-open` appears more like `open` from the CL standard.
+- `shm-open*`, for creating anonymous shm objects.
 
 Features to provide in the future:
 
@@ -111,19 +111,9 @@ Used for setting the permissions of the shm on `shm-open` and `fchmod`, and corr
 - `:xoth`, `:exec-other` - `O_XOTH`.
 - `:rwxo`, `:all-other` - `O_RWXO`.
 
-### [Enum] **protection**
-
-Used by `mmap` to set whether pages may be executed, read, written, or none at all.
-If `:none` is provided, no other flags may be included:
-
-- `:exec` - `PROT_EXEC`.
-- `:read` - `PROT_READ`.
-- `:write` - `PROT_WRITE`.
-- `:none` - `PROT_NONE`.
-
 ### [Condition] **shm-error** *(error)*
 
-Raised whenever any of the shm API functions fail.
+Raised whenever any POSIX API function fails.
 
 ### [Function] **shm-open** *name &key (direction :input) if-exists if-does-not-exist permissions* => *fd*
 
@@ -178,36 +168,74 @@ If you're translating from C, each combination of `oflag` would map to:
 - `O_RDWR | O_CREAT | O_TRUNC` - `:direction :io :if-exists :truncate :if-does-not-exist :create`
 - `O_RDWR | O_CREAT | O_EXCL | O_TRUNC` - `:direction :io :if-exists :error`
 
+**shm-open\*** may signal a **shm-error**.
+
 ### [Function] **shm-open\*** *&key (direction :input) permissions (attempts 100)* => *fd*
 
 Creates and opens, and then unlinks, a new POSIX shared memory object.
 
+*direction* -- one of `:input` or `:io`. The default is `:input`.
+
+*permissions* -- a list of **permission** keywords.
+
 *attempts* -- the number of times **shm-open\*** tries to open a shm object before giving up.
+
+**shm-open\*** may signal a **shm-error**.
 
 ### [Function] **shm-ftruncate** *fd length* => `(values)`
 
 Cause the shm object specified by *FD* to be truncated to a size of exactly *length* bytes.
 
-### [Function] **mmap** *fd addr length protections fd offset* => *ptr*
+**shm-ftruncate** may signal a **shm-error**.
+
+### [Function] **mmap** *addr length protections fd offset* => *ptr*
 
 Creates a new mapping in the virtual address space of the calling process.
+
+*addr* -- a CFFI pointer.
+
+*length* -- a positive length of the mapping, up to the length of the shm object.
+
+*protections* -- a list of `:exec`, `:read`, `:write`, or nil.
+
+*fd* -- a valid file descriptor.
+
+*offset* -- a nonnegative integer.
 
 Only `MAP_SHARED`, `MAP_PRIVATE` `MAP_FIXED`, and `MAP_ANONYMOUS` is POSIX, or otherwise is supported widely.
 Out of these, only `MAP_SHARED` makes sense to use with shared memory.
 Therefore, in place of providing the *flags* parameter in `mmap(2)`, it will always be `MAP_SHARED`.
+
+*protections* describes the desired memory protection of the mapping. It is either `nil`, or a list of the following keywords:
+
+- `:exec` - pages may be executed.
+- `:read` - pages may be read.
+- `:write` - pages may be written.
+
+**mmap** may signal a **shm-error**.
 
 ### [Function] **munmap** *addr size* => `(values)`
 
 Deletes the mappings for the specified address range, and cause further references to addresses within the range to generate invalid memory references.
 Closing the shm file descriptor may not automatically un-map the region.
 
+**mmap** may signal a **shm-error**.
+
 ### [Function] **shm-unlink** *name* => `(values)`
 
 Removes a shm object previously created by **shm-open**.
 
+*name* -- a string designator.
+
+If the shm object does not exist, or the caller does not have permission to unlink the object, a **shm-error** is signaled.
+
 ### [Function] **shm-close** *fd* => `(values)`
 
 Closes a file descriptor, so that it no longer refers to any shm object and may be reused.
+
+*fd* -- a file descriptor.
+
+If *fd* is a bad file descriptor, an I/O error occurs, or the `close()` call was interrupted by a signal, a **shm--error** is signaled.
 
 ### [Function] **fstat** *fd* => *stat*
 
@@ -215,13 +243,13 @@ Closes a file descriptor, so that it no longer refers to any shm object and may 
 
 Retrieve information about the file pointed to by the fd.
 
-### [Function] **fchmod** *fd mode* => *stat*
+### [Function] **fchmod** *fd permissions* => `(values)`
 
 **TODO** fchmod is not yet implemented.
 
 Changes the mode of the shm object.
 
-### [Function] **fchown** *fd owner group* => *stat*
+### [Function] **fchown** *fd owner group* => `(values)`
 
 **TODO** fchown is not yet implemented.
 
@@ -234,18 +262,18 @@ Runs *BODY* under lexical scope of *VAR*, an open shm object.
 
 ### [Macro] **with-open-shm\*** *(var &rest options) &body body*
 
-Like **with-open-shm**, but uses **shm-open\*** to open a shm object instead.
+Like **with-open-shm**, but uses **shm-open\*** instead of **shm-open** to open a shm object.
 
 ### [Macro] **with-mmap** *(var &rest options) &body body*
 
 Runs *BODY* under lexical scope of *VAR*, a memory-mapped pointer.
 *VAR* is unmapped when the program exits scope.
 
-### [Macro] **with-mmapped-shm** *(shm mmap shm-options (ptr length protections offset) :key (truncate t)) &body body*
+### [Macro] **with-mmapped-shm** *(shm-var mmap-var shm-options (ptr length protections offset) :key (truncate t)) &body body*
 
 Opens a shm object *SHM*, truncates it to `(+ LENGTH OFFSET)` (unless otherwise configured), and maps it to *MMAP*.
 Runs *BODY* under lexical scope of *SHM* and *MMAP*, unmapping and closing both when the program exits scope.
 
-### [Macro] **with-mmapped-shm\*** *(shm mmap shm-options (ptr length protections offset) :key (truncate t)) &body body*
+### [Macro] **with-mmapped-shm\*** *(shm-var mmap-var shm-options (ptr length protections offset) :key (truncate t)) &body body*
 
 Like **with-mmapped-shm**, but uses **shm-open\*** instead of **shm-open** to open a shm object.
