@@ -28,6 +28,7 @@
                                           "^MAP_SHARED$"
                                           "^EEXIST$"
                                           "^EINTR$"
+                                          "^ENOENT$"
 
                                           "^shm_open$"
                                           "^ftruncate$"

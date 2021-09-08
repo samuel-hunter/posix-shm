@@ -31,20 +31,6 @@
 (defun raise-shm-error ()
   (error 'shm-error :errno ffi:*errno*))
 
-(defparameter +open-flags+
-  (a:plist-hash-table
-    (list :rdonly ffi:+o-rdonly+
-          :rdwr ffi:+o-rdwr+
-          :creat ffi:+o-creat+
-          :excl ffi:+o-excl+
-          :trunc ffi:+o-trunc+
-
-          :read-only ffi:+o-rdonly+
-          :read-write ffi:+o-rdwr+
-          :create ffi:+o-creat+
-          :exclusive ffi:+o-excl+
-          :truncate ffi:+o-trunc+)))
-
 (defparameter +permissions+
   (a:plist-hash-table
     (list :xoth ffi:+s-ixoth+
@@ -80,9 +66,8 @@
 (defparameter +protections+
   (a:plist-hash-table
     (list :exec ffi:+prot-exec+
-          :read ffi:+prot-read+
           :write ffi:+prot-write+
-          :none ffi:+prot-none+)))
+          :read ffi:+prot-read+)))
 
 (defparameter +map-failed+
   (1- (ash 1 (* 8 (cffi:foreign-type-size :pointer)))))
@@ -94,21 +79,49 @@
 (defun to-flags (keywords hash-table)
   (reduce #'logior (mapcar (a:rcurry #'flag hash-table) keywords)))
 
-(defun compile-flags-if-possible (form flag-table environment)
-  (if (constantp form environment)
-      (to-flags (eval form) flag-table)
-      form))
+(defun %shm-open (name oflag mode if-exists if-does-not-exist)
+  (let ((fd (ffi:shm-open name oflag mode))
+        (errno ffi:*errno*))
+    (cond
+      ((>= fd 0) fd)
+      ((= errno ffi:+EEXIST+)
+       (ecase if-exists
+         (:error (raise-shm-error))
+         ((nil) nil)
+         (:supersede
+           (shm-unlink name)
+           (%shm-open name oflag mode :error if-does-not-exist))))
+      ((= errno ffi:+ENOENT+)
+       (ecase if-does-not-exist
+         (:error (raise-shm-error))
+         ((nil) nil)))
+      (t (raise-shm-error)))))
 
-(defun %shm-open (name oflag mode)
-  (let ((fd (ffi:shm-open name oflag mode)))
-    (if (minusp fd)
-        (raise-shm-error)
-        fd)))
+(defun open-options-to-oflag (direction if-exists if-does-not-exist)
+  (logior
+    (ecase direction
+      (:input ffi:+O-RDONLY+)
+      (:io ffi:+O-RDWR+))
+    (ecase if-exists
+      (:overwrite 0)
+      (:truncate ffi:+O-TRUNC+)
+      ((:error :supersede nil) ffi:+O-EXCL+))
+    (ecase if-does-not-exist
+      (:create ffi:+O-CREAT+)
+      ((:error nil) 0))))
 
-(defun shm-open (name &key open-flags permissions)
-  (let ((oflag (to-flags open-flags +open-flags+))
-        (mode (to-flags permissions +permissions+)))
-    (%shm-open name oflag mode)))
+(defun default-dne-option (direction if-exists)
+  (if (or (eq direction :input)
+          (member if-exists '(:overwrite :truncate)))
+      :error
+      :create))
+
+(defun shm-open (name &key (direction :input) (if-exists :overwrite)
+                      (if-does-not-exist (default-dne-option direction if-exists))
+                      permissions)
+  (let ((mode (to-flags permissions +permissions+))
+        (oflag (open-options-to-oflag direction if-exists if-does-not-exist)))
+    (%shm-open name oflag mode if-exists if-does-not-exist)))
 
 (defun random-name ()
   (loop :repeat 10
@@ -117,24 +130,20 @@
           :into suffix
         :finally (return (concatenate 'string "/xyz.shunter.shm-" suffix))))
 
-(defun %shm-open* (oflag mode attempts)
-  (setf mode
-        (logior mode ffi:+o-creat+ ffi:+o-excl+))
-  (loop :repeat attempts
+(defun %shm-open* (mode attempts)
+  (loop :with oflag := (logior ffi:+O-CREAT+ ffi:+O-EXCL+)
+        :repeat attempts
         :for name := (random-name)
-        :for fd := (ffi:shm-open name oflag mode)
-        :unless (minusp fd)
+        :for fd := (%shm-open name oflag mode :error :create)
+        :when fd
           :do (shm-unlink name)
               (return fd)
-        :unless (= ffi:*errno* ffi:+eexist+)
-          :do (raise-shm-error)
+
         :finally ;; out of attempts
           (raise-shm-error)))
 
-(defun shm-open* (&key open-flags permissions (attempts 100))
-  (let ((oflag (to-flags (list* :create :exclusive open-flags) +open-flags+))
-        (mode (to-flags permissions +permissions+)))
-    (%shm-open* oflag mode attempts)))
+(defun shm-open* (&key permissions (attempts 100))
+  (%shm-open* (to-flags permissions +permissions+) attempts))
 
 (defun shm-ftruncate (fd size)
   (loop :while (minusp (ffi:ftruncate fd size))
@@ -195,7 +204,8 @@
   `(let ((,var (shm-open ,@options)))
      (unwind-protect
        (progn ,@body)
-       (shm-close ,var))))
+       (when ,var
+         (shm-close ,var)))))
 
 (defmacro with-mmap ((var ptr length protections fd offset) &body body)
   (a:once-only (length)

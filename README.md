@@ -36,7 +36,7 @@ $ git clone https://git.sr.ht/~shunter/posix-shm
   (* 10 (cffi:foreign-type-size :int)))
 
 (defparameter *shm*
-  (shm-open "/foobar-shm" :open-flags '(:create :read-write)
+  (shm-open "/foobar-shm" :direction :io :if-does-not-exist :create
             :permissions '(:read-user :write-user)))
 
 (shm-ftruncate *shm* +shm-size+)
@@ -61,8 +61,7 @@ $ git clone https://git.sr.ht/~shunter/posix-shm
 Use `with-open-shm` and `with-mmap` to automatically close and unmap when the program leaves scope:
 
 ```lisp
-(with-open-shm (shm "/foobar-shm" :open-flags '(:create :read-write)
-                    :permissions '(:all-user))
+(with-open-shm (shm "/foobar-shm" :direction :io)
   (shm-ftruncate shm 100)
   (with-mmap (ptr (cffi:null-pointer) 100 '(:read :write) shm 0)
     ;; do your thing...
@@ -72,8 +71,7 @@ Use `with-open-shm` and `with-mmap` to automatically close and unmap when the pr
 `with-mmapped-shm` opens a shm, truncates it, and then maps it to a pointer all in one:
 
 ```lisp
-(with-mmapped-shm (shm ptr ("/foobar-shm" :open-flags '(:create :read-write)
-                                          :permissions '(:all-user))
+(with-mmapped-shm (shm ptr ("/foobar-shm" :direction :io)
 	               ((cffi:null-pointer) 100 '(:read :write) 0))
   ;; do your thing...
   )
@@ -82,8 +80,7 @@ Use `with-open-shm` and `with-mmap` to automatically close and unmap when the pr
 Use `shm-open*` to create anonymous shms:
 
 ```lisp
-;; shm-open* automatically tacks on (:create :exclusive) to the open flags
-(defvar *anon-shm* (shm-open* :open-flags '(:read-write) :permissions '(:all-user)))
+(defvar *anon-shm* (shm-open* :direction :io :permissions '(:all-user))
 
 ;; Do your thing...
 
@@ -96,23 +93,6 @@ Any comments, questions, issues, or patches are greatly appreciated!
 I do my main development on [Sourcehut](https://sr.ht/~shunter/posix-shm/), with a [mailing list](https://lists.sr.ht/~shunter/public-inbox) and [issue tracker](https://todo.sr.ht/~shunter/posix-shm).
 
 ## API
-
-### [Enum] **open-flag**
-
-Used with `shm-open` and `shm-open*`:
-
-- `:rdonly`, `:read` - `O_RDONLY`.
-  The shm object is opened in read-only mode.
-- `:rdwr`, `:read-write` - `O_RDWR`.
-  The shm object is opened in read-write mode.
-- `:creat`, `:create` - `O_CREAT`.
-  The shm object is created if it doesn't yet exist.
-- `:excl`, `:exclusive` - `O_EXCL`.
-  Alongside `:creat`, `shm-open` fails to create a shm object when it already exists.
-- `:trunc`, `:truncate` - `O_TRUNC`.
-  The shm object truncates the file to 0 bytes when it opens.
-
-`shm-open` already provides the flags `:create` and `:exclusive`.
 
 ### [Enum] **permission**
 
@@ -145,22 +125,64 @@ If `:none` is provided, no other flags may be included:
 
 Raised whenever any of the shm API functions fail.
 
-### [Function] **shm-open** *name open-flags permissions* => *fd*
+### [Function] **shm-open** *name &key (direction :input) if-exists if-does-not-exist permissions* => *fd*
 
 Creates and opens a new, or opens an existing, POSIX shared memory object.
 It can then be used by unrelated processes to **mmap** the same region of shared memory.
 
-*NAME* specifies the shared memory object to be created or opened. For portable use, a shm object should be identified by a name of the form `/somename`; that is, a string up to **NAME_MAX** (i.e. 255) characters consisting of an initial slash, followed by non-slash characters.
+*name* -- a string designator.
 
-*OPEN-FLAGS* is a list of **open-flag** keywords, putting together exactly one of `:rdonly`/`:read-only` or `:rdwr`/`:read-write` and any of the rest.
+*direction* -- one of `:input` or `:io`. The default is `:input`.
 
-*PERMISSIONS* specifies a list of file permissions set by the shm object if it is created.
+*if-exists* -- one of `:error`, `:overwrite`, `:truncate`, `:supersede`, or `nil`.
+The default is `:overwrite`.
 
-### [Function] **shm-open\*** *name open-flags permissions &optional (attempts 100)* => *fd*
+*if-does-not-exist* -- one of `:error`, `:create`, or `nil`.
+The default is `:error` if *direction* is `:input` or *if-exists* is `:overwrite` or `:truncate`, or `:create` otherwise.
+
+*permissions* -- a list of **permission** keywords.
+
+If *direction* is `:input`, it opens the shm object for read access (in C, this would be the `O_RDONLY` flag).
+If it is `:io`, it it opened for read-write access (`O_RDWR`).
+
+*if-exists* specifies the action to be taken if a shm object of the name *name* already exists.
+If *direction* is `:input`, it is ignored:
+
+- `:error` - An error of type **shm-error** is signaled.
+  If *if-does-not-exist* is not `:create`, then this is ignored.
+- `:overwrite` - Output operations on the shm object destructively modify the shared memory.
+- `:truncate` - Like `:overwrite`, but the shm object is first truncated to 0 bytes first (in C, this would be `O_TRUNC`).
+- `:supersede` - The existing shm object is superseded; that is, the old shm object is unlinked, and then a new shm object is created.
+  If *if-does-not-exist* is not `:create`, then this is ignored.
+- `nil` - No shm object is created; instead, `nil` is returned to indicate failure.
+  If *if-does-not-exist* is not `:create`, then this is ignored.
+
+*if-does-not-exist* specifies the action to be taken if a shm object of the name *name* does not exist.
+
+- `:error` - An error of type **shm-error** is signaled.
+- `:create` - An empty shm object is created (in C, this would be `O_CREAT`).
+- `nil` - No shm object is created; instead, `nil` is returned to indicate failure.
+
+If you're translating from C, each combination of `oflag` would map to:
+
+- `O_RDONLY` - `` (no keyword arguments)
+- `O_RDONLY | O_CREAT` - `:if-does-not-exist :create`
+- `O_RDONLY | O_CREAT | O_EXCL` - `:if-exists :error :if-does-not-exist :create`
+- `O_RDONLY | O_TRUNC` - `:if-exists :truncate`
+- `O_RDONLY | O_CREAT | O_TRUNC` - `:if-exists :truncate :if-does-not-exist :create`
+- `O_RDONLY | O_CREAT | O_EXCL | O_TRUNC` - `:if-exists :error :if-does-not-exist :create`
+- `O_RDWR` - `:direction :io`
+- `O_RDWR | O_CREAT` - `:direction :io :if-does-not-exist :create`
+- `O_RDWR | O_CREAT | O_EXCL` - `:direction :io :if-exists :error`
+- `O_RDWR | O_TRUNC` - `:direction :io :if-exists :truncate`
+- `O_RDWR | O_CREAT | O_TRUNC` - `:direction :io :if-exists :truncate :if-does-not-exist :create`
+- `O_RDWR | O_CREAT | O_EXCL | O_TRUNC` - `:direction :io :if-exists :error`
+
+### [Function] **shm-open\*** *&key (direction :input) permissions (attempts 100)* => *fd*
 
 Creates and opens, and then unlinks, a new POSIX shared memory object.
 
-*ATTEMPTS* specifies the number of attempted openings before giving up.
+*attempts* -- the number of times **shm-open\*** tries to open a shm object before giving up.
 
 ### [Function] **shm-ftruncate** *fd length* => `(values)`
 
