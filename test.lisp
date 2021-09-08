@@ -29,6 +29,9 @@
 
   (shm:with-open-shm (shm +shm-name+)
     (of-type (integer 1 *) shm))
+
+  (shm:with-open-shm* (shm)
+    (of-type (integer 1 *) shm))
   (shm:shm-unlink +shm-name+))
 
 (define-test shm-open.can-use-various-options
@@ -67,35 +70,24 @@
 
 (define-test shm-open.can-use-various-permissions
   :parent shm-open
-  (ignore-errors (shm:shm-unlink +shm-name+))
-  (shm:with-open-shm (shm +shm-name+ :if-exists :error :if-does-not-exist :create
-                          :permissions '(:exec-user :write-user :read-user
-                                         :exec-group :write-group :read-group
-                                         :exec-other :write-other :read-other))
+  (shm:with-open-shm* (shm :permissions '(:exec-user :write-user :read-user
+                                          :exec-group :write-group :read-group
+                                          :exec-other :write-other :read-other))
     (of-type (integer 1 *) shm))
 
 
-  (shm:shm-unlink +shm-name+)
-  (shm:with-open-shm (shm +shm-name+ :if-exists :error :if-does-not-exist :create
-                          :permissions '(:xusr :wusr :rusr
-                                         :xgrp :wgrp :rgrp
-                                         :xoth :woth :roth))
+  (shm:with-open-shm* (shm :permissions '(:xusr :wusr :rusr
+                                          :xgrp :wgrp :rgrp
+                                          :xoth :woth :roth))
     (of-type (integer 1 *) shm))
 
 
-  (shm:shm-unlink +shm-name+)
-  (shm:with-open-shm (shm +shm-name+ :if-exists :error :if-does-not-exist :create
-                          :permissions '(:all-user :all-group :all-other))
+  (shm:with-open-shm* (shm :permissions '(:all-user :all-group :all-other))
     (of-type (integer 1 *) shm))
 
 
-  (shm:shm-unlink +shm-name+)
-  (shm:with-open-shm (shm +shm-name+ :if-exists :error :if-does-not-exist :create
-                          :permissions '(:rwxu :rwxg :rwxo))
-    (of-type (integer 1 *) shm))
-
-  ;; Cleanup
-  (shm:shm-unlink +shm-name+))
+  (shm:with-open-shm* (shm :permissions '(:rwxu :rwxg :rwxo))
+    (of-type (integer 1 *) shm)))
 
 (define-test cant-open-names-with-multiple-slashes
   :parent shm-open
@@ -123,8 +115,7 @@
 (define-test mmap
   :depends-on (shm-open shm-ftruncate)
 
-  (shm:with-open-shm (shm +shm-name+ :direction :io :if-does-not-exist :create
-                          :permissions '(:all-user))
+  (shm:with-open-shm* (shm :direction :io)
     (shm:shm-ftruncate shm 100)
     (let ((ptr (shm:mmap (cffi:null-pointer) 100 '(:read) shm 0)))
       (true (cffi:pointerp ptr))
@@ -132,45 +123,54 @@
                (cffi:mem-aref ptr :int))
       (shm:munmap ptr 100)))
 
-  (shm:with-open-shm (shm +shm-name+ :direction :io)
+  (shm:with-open-shm* (shm :direction :io)
     (shm:shm-ftruncate shm 100)
     (shm:with-mmap (ptr (cffi:null-pointer) 100 '(:read) shm 0)
       (true (cffi:pointerp ptr))
       (of-type integer
                (cffi:mem-aref ptr :int))))
 
-  (shm:with-mmapped-shm (shm ptr (+shm-name+ :direction :io)
+  (shm:with-mmapped-shm (shm ptr (+shm-name+ :direction :io :if-does-not-exist :create
+                                             :permissions '(:all-user))
                              ((cffi:null-pointer) 100 '(:read) 0))
+    (of-type (integer 1 *) shm)
+    (true (cffi:pointerp ptr))
+    (of-type integer
+             (cffi:mem-aref ptr :int)))
+  (shm:shm-unlink +shm-name+)
+
+  (shm:with-mmapped-shm* (shm ptr (:direction :io)
+                              ((cffi:null-pointer) 100 '(:read) 0))
     (of-type (integer 1 *) shm)
     (true (cffi:pointerp ptr))
     (of-type integer
              (cffi:mem-aref ptr :int)))
 
   ;; mmapping a read-only shm with read-write protections
-  (shm:with-open-shm (shm +shm-name+)
+  (shm:with-open-shm* (shm)
     (fail (shm:mmap (cffi:null-pointer) 10 '(:read :write) shm 0)))
 
   ;; writing to and reading from a read-write shm object
-  (shm:with-mmapped-shm (shm ptr (+shm-name+ :direction :io)
-                             ((cffi:null-pointer)
-                              (* +int-size+ 5) '(:read :write) 0))
+  (shm:with-mmapped-shm* (shm ptr (:direction :io)
+                              ((cffi:null-pointer)
+                               (* +int-size+ 5) '(:read :write) 0))
     (loop :for i :upto 5 :do (setf (cffi:mem-aref ptr :int i) (* 10 i)))
     (loop :for i :upto 5
           :do (is = (* i 10)
                   (cffi:mem-aref ptr :int i))))
 
   ;; Memory fault on reading with no read protection
-  (shm:with-mmapped-shm (shm ptr (+shm-name+ :direction :io)
-                             ((cffi:null-pointer) +int-size+ nil 0))
+  (shm:with-mmapped-shm* (shm ptr (:direction :io)
+                              ((cffi:null-pointer) +int-size+ nil 0))
     (fail (cffi:mem-aref ptr :int)))
 
   ;; Memory fault on writing with no write protection
-  (shm:with-mmapped-shm (shm ptr (+shm-name+ :direction :io)
-                             ((cffi:null-pointer) +int-size+ nil 0))
+  (shm:with-mmapped-shm* (shm ptr (:direction :io)
+                              ((cffi:null-pointer) +int-size+ nil 0))
     (fail (cffi:mem-aref ptr :int)))
 
   ;; Two ptr's mmapped from the same shm object should share values
-  (shm:with-open-shm (shm +shm-name+ :direction :io)
+  (shm:with-open-shm* (shm :direction :io)
     (shm:shm-ftruncate shm +int-size+)
     (shm:with-mmap (write-ptr (cffi:null-pointer)
                               +int-size+
@@ -181,10 +181,10 @@
         (loop :repeat 3
               :with the-int := (random 1000)
               :do (setf (cffi:mem-ref write-ptr :int) the-int)
-                  (is = the-int (cffi:mem-ref read-ptr :int))))))
+              (is = the-int (cffi:mem-ref read-ptr :int))))))
 
   ;; Two mmaps from two shm objects from the same path should share values
-  (shm:shm-unlink +shm-name+)
+  (ignore-errors (shm:shm-unlink +shm-name+))
   (shm:with-mmapped-shm (shm1 write-ptr
                               (+shm-name+ :direction :io
                                           :if-exists :error
@@ -202,7 +202,7 @@
       (loop :repeat 3
             :with the-int := (random 1000)
             :do (setf (cffi:mem-ref write-ptr :int) the-int)
-                (is = the-int (cffi:mem-ref read-ptr :int)))))
+            (is = the-int (cffi:mem-ref read-ptr :int)))))
 
   ;; Cleanup
   (shm:shm-unlink +shm-name+))

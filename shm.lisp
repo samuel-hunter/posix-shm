@@ -16,8 +16,10 @@
            #:fchown
            #:fchmod
            #:with-open-shm
+           #:with-open-shm*
            #:with-mmap
-           #:with-mmapped-shm))
+           #:with-mmapped-shm
+           #:with-mmapped-shm*))
 
 (in-package #:xyz.shunter.posix-shm)
 
@@ -130,9 +132,9 @@
           :into suffix
         :finally (return (concatenate 'string "/xyz.shunter.shm-" suffix))))
 
-(defun %shm-open* (mode attempts)
-  (loop :with oflag := (logior ffi:+O-CREAT+ ffi:+O-EXCL+)
-        :repeat attempts
+(defun %shm-open* (oflag mode attempts)
+  (setf oflag (logior oflag ffi:+O-CREAT+ ffi:+O-EXCL+))
+  (loop :repeat attempts
         :for name := (random-name)
         :for fd := (%shm-open name oflag mode :error :create)
         :when fd
@@ -142,8 +144,11 @@
         :finally ;; out of attempts
           (raise-shm-error)))
 
-(defun shm-open* (&key permissions (attempts 100))
-  (%shm-open* (to-flags permissions +permissions+) attempts))
+(defun shm-open* (&key (direction :input) permissions (attempts 100))
+  (%shm-open* (ecase direction
+                (:input ffi:+O-RDONLY+)
+                (:io ffi:+O-RDWR+))
+              (to-flags permissions +permissions+) attempts))
 
 (defun shm-ftruncate (fd size)
   (loop :while (minusp (ffi:ftruncate fd size))
@@ -176,24 +181,20 @@
 (defun shm-close (fd)
   (when (minusp (ffi:close fd))
     (raise-shm-error))
-
   (values))
 
 (defun fstat (fd)
   (declare (ignore fd))
-  (error "TODO"))
+  (error "TODO: Unimplemented"))
 
 ;; XXX: cffi can't find fchown().
-;(defun fchown (fd owner-id group-id)
-;  (when (minusp (ffi:fchown fd owner-id group-id))
-;    (raise-shm-error))
-;
-;  (values))
+(defun fchown (fd owner-id group-id)
+  (declare (ignore fd owner-id group-id))
+  (error "TODO: Unimplemented"))
 
 (defun %fchmod (fd mode)
   (when (minusp (ffi:fchmod fd mode))
     (raise-shm-error))
-
   (values))
 
 (defun fchmod (fd permissions)
@@ -207,6 +208,12 @@
        (when ,var
          (shm-close ,var)))))
 
+(defmacro with-open-shm* ((var &rest options) &body body)
+  `(let ((,var (shm-open* ,@options)))
+     (unwind-protect
+       (progn ,@body)
+       (shm-close ,var))))
+
 (defmacro with-mmap ((var ptr length protections fd offset) &body body)
   (a:once-only (length)
     `(let ((,var (mmap ,ptr ,length ,protections ,fd ,offset)))
@@ -219,6 +226,15 @@
                             &body body)
   (a:once-only (length offset)
     `(with-open-shm (,fd ,@shm-options)
+       ,(when truncate `(shm-ftruncate ,fd (+ ,length ,offset)))
+       (with-mmap (,mmap ,ptr ,length ,protections ,fd ,offset)
+         ,@body))))
+
+(defmacro with-mmapped-shm* ((fd mmap shm-options (ptr length protections offset)
+                                 &key (truncate t))
+                             &body body)
+  (a:once-only (length offset)
+    `(with-open-shm* (,fd ,@shm-options)
        ,(when truncate `(shm-ftruncate ,fd (+ ,length ,offset)))
        (with-mmap (,mmap ,ptr ,length ,protections ,fd ,offset)
          ,@body))))

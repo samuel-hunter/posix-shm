@@ -1,9 +1,9 @@
 # posix-shm
 [![builds.sr.ht status](https://builds.sr.ht/~shunter/posix-shm/commits/test.yml.svg)](https://builds.sr.ht/~shunter/posix-shm/commits/test.yml)
 
-POSIX shared memory for Common Lisp.
+Common Lisp bindings to the POSIX shared memory API.
 
-This library is currently in its embryonic stages.
+This library is currently in its embryonic stages, and is not yet ready for public consumption.
 
 According to the Linux Programmer's Manual, the POSIX shared memory API (or `shm`) "allows processes to communicate information by sharing a region of memory." -- `shm_overview(7)`.
 This library provides a slim wrapper over the POSIX shm interface.
@@ -11,8 +11,8 @@ This library provides a slim wrapper over the POSIX shm interface.
 Features include:
 
 - `shm_open`, `shm_unlink`, `mmap`
-- A utility function, `shm-open*`, for opening anonymous shms that are immediately unlinked.
-- Flags provided as keywords, with more readable variations.
+- A utility function, `shm-open*`, for opening anonymous shm objects that are immediately unlinked.
+- `shm-open` appears more like `open` from the CL standard.
 
 Features to provide in the future:
 
@@ -77,12 +77,12 @@ Use `with-open-shm` and `with-mmap` to automatically close and unmap when the pr
   )
 ```
 
-Use `shm-open*` to create anonymous shms:
+Use `shm-open*` to create anonymous shm objects:
 
 ```lisp
 (defvar *anon-shm* (shm-open* :direction :io :permissions '(:all-user))
 
-;; Do your thing...
+;; do your thing...
 
 (shm-close *anon-shm*)
 ```
@@ -191,6 +191,7 @@ Cause the shm object specified by *FD* to be truncated to a size of exactly *len
 ### [Function] **mmap** *fd addr length protections fd offset* => *ptr*
 
 Creates a new mapping in the virtual address space of the calling process.
+
 Only `MAP_SHARED`, `MAP_PRIVATE` `MAP_FIXED`, and `MAP_ANONYMOUS` is POSIX, or otherwise is supported widely.
 Out of these, only `MAP_SHARED` makes sense to use with shared memory.
 Therefore, in place of providing the *flags* parameter in `mmap(2)`, it will always be `MAP_SHARED`.
@@ -231,12 +232,20 @@ Changes the ownership of the shm object
 Runs *BODY* under lexical scope of *VAR*, an open shm object.
 *VAR* is closed (but not unlinked) when the program exits scope.
 
+### [Macro] **with-open-shm\*** *(var &rest options) &body body*
+
+Like **with-open-shm**, but uses **shm-open\*** to open a shm object instead.
+
 ### [Macro] **with-mmap** *(var &rest options) &body body*
 
 Runs *BODY* under lexical scope of *VAR*, a memory-mapped pointer.
 *VAR* is unmapped when the program exits scope.
 
-### [Macro] **with-mmapped-shm** *(shm mmap shm-options (length protections offset) :key (truncate t)) &body body*
+### [Macro] **with-mmapped-shm** *(shm mmap shm-options (ptr length protections offset) :key (truncate t)) &body body*
 
 Opens a shm object *SHM*, truncates it to `(+ LENGTH OFFSET)` (unless otherwise configured), and maps it to *MMAP*.
 Runs *BODY* under lexical scope of *SHM* and *MMAP*, unmapping and closing both when the program exits scope.
+
+### [Macro] **with-mmapped-shm\*** *(shm mmap shm-options (ptr length protections offset) :key (truncate t)) &body body*
+
+Like **with-mmapped-shm**, but uses **shm-open\*** instead of **shm-open** to open a shm object.
