@@ -2,7 +2,10 @@
 ;;; Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
 ;;; BSD 3-Clause
 
-(defpackage #:xyz.shunter.posix-shm.ffi
+;; Using uiop's define-package here, because defpackage warns of all symbols
+;; that autowrap exports for us.
+(uiop:define-package #:xyz.shunter.posix-shm.ffi
+  (:use)
   (:import-from #:cl
                 #:defpackage
                 #:in-package)
