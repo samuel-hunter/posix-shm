@@ -19,7 +19,7 @@
 (define-test shm-open
   (ignore-errors (shm:shm-unlink +shm-name+))
   (let ((shm (shm:shm-open +shm-name+ :if-does-not-exist :create
-                           :permissions '(:all-user))))
+                           :permissions '(:user-all))))
     (of-type (integer 1 *) shm)
     (shm:shm-close shm))
 
@@ -48,7 +48,7 @@
   :parent shm-open
   (shm:with-open-shm (shm +shm-name+ :if-exists nil
                           :if-does-not-exist :create
-                          :permissions '(:all-user))
+                          :permissions '(:user-all))
     (of-type (integer 1 *) shm))
 
   (fail (shm:shm-open +shm-name+ :if-exists :error
@@ -57,7 +57,7 @@
 
   (shm:with-open-shm (shm +shm-name+ :if-exists :supersede
                           :if-does-not-exist :create
-                          :permissions '(:all-user)
+                          :permissions '(:user-all)
                           )
     (of-type (integer 1 *) shm))
 
@@ -66,11 +66,11 @@
 
   (shm:shm-unlink +shm-name+)
   (shm:with-open-shm (shm +shm-name+ :if-exists :error :if-does-not-exist :create
-                          :permissions '(:all-user))
+                          :permissions '(:user-all))
     (of-type (integer 1 *) shm))
   (shm:shm-unlink +shm-name+)
   (shm:with-open-shm (shm +shm-name+ :if-exists nil :if-does-not-exist :create
-                          :permissions '(:all-user))
+                          :permissions '(:user-all))
     (of-type (integer 1 *) shm))
 
   (shm:shm-unlink +shm-name+)
@@ -81,9 +81,9 @@
 
 (define-test shm-open.can-use-various-permissions
   :parent shm-open
-  (shm:with-open-shm* (shm :permissions '(:exec-user :write-user :read-user
-                                          :exec-group :write-group :read-group
-                                          :exec-other :write-other :read-other))
+  (shm:with-open-shm* (shm :permissions '(:user-exec :user-write :user-read
+                                          :group-exec :group-write :group-read
+                                          :other-exec :other-write :other-read))
     (of-type (integer 1 *) shm))
 
 
@@ -93,7 +93,7 @@
     (of-type (integer 1 *) shm))
 
 
-  (shm:with-open-shm* (shm :permissions '(:all-user :all-group :all-other))
+  (shm:with-open-shm* (shm :permissions '(:user-all :group-all :other-all))
     (of-type (integer 1 *) shm))
 
 
@@ -109,7 +109,7 @@
 (define-test shm-ftruncate
   :depends-on (shm-open)
   (shm:with-open-shm (shm +shm-name+ :direction :io :if-does-not-exist :create
-                          :permissions '(:all-user))
+                          :permissions '(:user-all))
     (finish (shm:shm-ftruncate shm 100)))
 
   (shm:with-open-shm (shm +shm-name+)
@@ -146,7 +146,7 @@
                (cffi:mem-aref ptr :int))))
 
   (shm:with-mmapped-shm (shm ptr (+shm-name+ :direction :io :if-does-not-exist :create
-                                             :permissions '(:all-user))
+                                             :permissions '(:user-all))
                              ((cffi:null-pointer) 100 '(:read) 0))
     (of-type (integer 1 *) shm)
     (true (cffi:pointerp ptr))
@@ -205,7 +205,7 @@
                               (+shm-name+ :direction :io
                                           :if-exists :error
                                           :if-does-not-exist :create
-                                          :permissions '(:all-user))
+                                          :permissions '(:user-all))
                               ((cffi:null-pointer)
                                +int-size+
                                '(:write) 0))
@@ -235,6 +235,6 @@
 (define-test fchmod
   :depends-on (shm-open)
   (shm:with-open-shm* (shm)
-    (finish (shm:fchmod shm '(:all-user))))
+    (finish (shm:fchmod shm '(:user-all))))
 
   (fail (shm:fchmod -1 ())))

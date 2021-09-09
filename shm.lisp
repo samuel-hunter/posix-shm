@@ -41,30 +41,30 @@
           :roth ffi:+s-iroth+
           :rwxo ffi:+s-irwxo+
 
-          :exec-other ffi:+s-ixoth+
-          :write-other ffi:+s-iwoth+
-          :read-other ffi:+s-iroth+
-          :all-other ffi:+s-irwxo+
+          :other-exec ffi:+s-ixoth+
+          :other-write ffi:+s-iwoth+
+          :other-read ffi:+s-iroth+
+          :other-all ffi:+s-irwxo+
 
           :xgrp ffi:+s-ixgrp+
           :wgrp ffi:+s-iwgrp+
           :rgrp ffi:+s-irgrp+
           :rwxg ffi:+s-irwxg+
 
-          :exec-group ffi:+s-ixgrp+
-          :write-group ffi:+s-iwgrp+
-          :read-group ffi:+s-irgrp+
-          :all-group ffi:+s-irwxg+
+          :group-exec ffi:+s-ixgrp+
+          :group-write ffi:+s-iwgrp+
+          :group-read ffi:+s-irgrp+
+          :group-all ffi:+s-irwxg+
 
           :xusr ffi:+s-ixusr+
           :wusr ffi:+s-iwusr+
           :rusr ffi:+s-irusr+
           :rwxu ffi:+s-irwxu+
 
-          :exec-user ffi:+s-ixusr+
-          :write-user ffi:+s-iwusr+
-          :read-user ffi:+s-irusr+
-          :all-user ffi:+s-irwxu+)))
+          :user-exec ffi:+s-ixusr+
+          :user-write ffi:+s-iwusr+
+          :user-read ffi:+s-irusr+
+          :user-all ffi:+s-irwxu+)))
 
 (defparameter +protections+
   (a:plist-hash-table

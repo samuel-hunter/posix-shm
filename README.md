@@ -39,7 +39,7 @@ $ git clone https://git.sr.ht/~shunter/posix-shm
 
 (defparameter *shm*
   (shm-open "/foobar-shm" :direction :io :if-does-not-exist :create
-            :permissions '(:read-user :write-user)))
+            :permissions '(:user-read :user-write)))
 
 (shm-ftruncate *shm* +shm-size+)
 
@@ -82,7 +82,7 @@ Use `with-open-shm` and `with-mmap` to automatically close and unmap when the pr
 Use `shm-open*` to create anonymous shm objects:
 
 ```lisp
-(defvar *anon-shm* (shm-open* :direction :io :permissions '(:all-user))
+(defvar *anon-shm* (shm-open* :direction :io :permissions '(:user-all))
 
 ;; do your thing...
 
@@ -100,18 +100,18 @@ I do my main development on [Sourcehut](https://sr.ht/~shunter/posix-shm/), with
 
 Used for setting the permissions of the shm on `shm-open` and `fchmod`, and correspond to whether a user, group, or all users can read, write, or execute the shm (or perform any three):
 
-- `:rusr`, `:read-user` - `O_RUSR`.
-- `:wusr`, `:write-user` - `O_WUSR`.
-- `:xusr`, `:exec-user` - `O_XUSR`.
-- `:rwxu`, `:all-user` - `O_RWXU`.
-- `:rgrp`, `:read-group` - `O_RGRP`.
-- `:wgrp`, `:write-group` - `O_WGRP`.
-- `:xgrp`, `:exec-group` - `O_XGRP`.
-- `:rwxg`, `:all-group` - `O_RWXG`.
-- `:roth`, `:read-other` - `O_ROTH`.
-- `:woth`, `:write-other` - `O_WOTH`.
-- `:xoth`, `:exec-other` - `O_XOTH`.
-- `:rwxo`, `:all-other` - `O_RWXO`.
+- `:rusr`, `:user-read` - `O_RUSR`.
+- `:wusr`, `:user-write` - `O_WUSR`.
+- `:xusr`, `:user-exec` - `O_XUSR`.
+- `:rwxu`, `:user-all` - `O_RWXU`.
+- `:rgrp`, `:group-read` - `O_RGRP`.
+- `:wgrp`, `:group-write` - `O_WGRP`.
+- `:xgrp`, `:group-exec` - `O_XGRP`.
+- `:rwxg`, `:group-all` - `O_RWXG`.
+- `:roth`, `:other-read` - `O_ROTH`.
+- `:woth`, `:other-write` - `O_WOTH`.
+- `:xoth`, `:other-exec` - `O_XOTH`.
+- `:rwxo`, `:other-all` - `O_RWXO`.
 
 ### [Condition] **shm-error** *(error)*
 
