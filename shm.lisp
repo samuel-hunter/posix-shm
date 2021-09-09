@@ -5,7 +5,8 @@
   (:local-nicknames (#:ffi #:xyz.shunter.posix-shm.ffi)
                     (#:a #:alexandria))
   (:use #:cl)
-  (:export #:shm-open
+  (:export #:shm-error
+           #:shm-open
            #:shm-open*
            #:shm-ftruncate
            #:mmap
@@ -187,11 +188,12 @@
     (raise-shm-error))
   (values))
 
+;;; XXX: cffi signals fstat() as an undefined function.
 (defun fstat (fd)
   (declare (ignore fd))
   (error "TODO: Unimplemented"))
 
-;; XXX: cffi can't find fchown().
+;; XXX: autowrap can't find fchown().
 (defun fchown (fd owner-id group-id)
   (declare (ignore fd owner-id group-id))
   (error "TODO: Unimplemented"))

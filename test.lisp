@@ -27,23 +27,33 @@
     (of-type (integer 1 *) shm)
     (shm:shm-close shm))
 
+  (fail (shm:shm-open* :attempts 0)
+        'shm:shm-error)
+
   (shm:with-open-shm (shm +shm-name+)
     (of-type (integer 1 *) shm))
 
   (shm:with-open-shm* (shm)
     (of-type (integer 1 *) shm))
+
+  (fail (shm:shm-close -1)
+        'shm:shm-error)
+
+  (fail (shm:shm-open +shm-name+ :permissions '(:flag-that-doesnt-exist)))
+
+  ;; Cleanup
   (shm:shm-unlink +shm-name+))
 
 (define-test shm-open.can-use-various-options
   :parent shm-open
   (shm:with-open-shm (shm +shm-name+ :if-exists nil
                           :if-does-not-exist :create
-                          :permissions '(:all-user)
-                          )
+                          :permissions '(:all-user))
     (of-type (integer 1 *) shm))
 
   (fail (shm:shm-open +shm-name+ :if-exists :error
-                      :if-does-not-exist :create))
+                      :if-does-not-exist :create)
+        'shm:shm-error)
 
   (shm:with-open-shm (shm +shm-name+ :if-exists :supersede
                           :if-does-not-exist :create
@@ -64,7 +74,8 @@
     (of-type (integer 1 *) shm))
 
   (shm:shm-unlink +shm-name+)
-  (fail (shm:shm-open +shm-name+ :if-does-not-exist :error))
+  (fail (shm:shm-open +shm-name+ :if-does-not-exist :error)
+        'shm:shm-error)
   (shm:with-open-shm (shm +shm-name+ :if-does-not-exist nil)
     (is eq nil shm)))
 
@@ -92,7 +103,8 @@
 (define-test cant-open-names-with-multiple-slashes
   :parent shm-open
   (fail (shm:shm-open "/xyz.shunter.posix-shm.test/bad/name///"
-                      :if-does-not-exist :create)))
+                      :if-does-not-exist :create)
+        'shm:shm-error))
 
 (define-test shm-ftruncate
   :depends-on (shm-open)
@@ -101,13 +113,16 @@
     (finish (shm:shm-ftruncate shm 100)))
 
   (shm:with-open-shm (shm +shm-name+)
-    (fail (shm:shm-ftruncate shm 100)))
+    (fail (shm:shm-ftruncate shm 100)
+          'shm:shm-error))
 
   (shm:with-open-shm (shm +shm-name+ :direction :input)
-    (fail (shm:shm-ftruncate shm 100)))
+    (fail (shm:shm-ftruncate shm 100)
+          'shm:shm-error))
 
   (shm:with-open-shm (shm +shm-name+ :direction :io)
-    (fail (shm:shm-ftruncate shm -1)))
+    (fail (shm:shm-ftruncate shm -1)
+          'shm:shm-error))
 
   ;; Cleanup
   (shm:shm-unlink +shm-name+))
@@ -148,7 +163,8 @@
 
   ;; mmapping a read-only shm with read-write protections
   (shm:with-open-shm* (shm)
-    (fail (shm:mmap (cffi:null-pointer) 10 '(:read :write) shm 0)))
+    (fail (shm:mmap (cffi:null-pointer) 10 '(:read :write) shm 0)
+          'shm:shm-error))
 
   ;; writing to and reading from a read-write shm object
   (shm:with-mmapped-shm* (shm ptr (:direction :io)
@@ -204,6 +220,9 @@
             :do (setf (cffi:mem-ref write-ptr :int) the-int)
             (is = the-int (cffi:mem-ref read-ptr :int)))))
 
+  (fail (shm:munmap (cffi:null-pointer) 0)
+        'shm:shm-error)
+
   ;; Cleanup
   (shm:shm-unlink +shm-name+))
 
@@ -214,4 +233,8 @@
   :depends-on (shm-open))
 
 (define-test fchmod
-  :depends-on (shm-open))
+  :depends-on (shm-open)
+  (shm:with-open-shm* (shm)
+    (finish (shm:fchmod shm '(:all-user))))
+
+  (fail (shm:fchmod -1 ())))

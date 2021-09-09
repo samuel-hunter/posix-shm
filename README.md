@@ -3,20 +3,22 @@
 
 Common Lisp bindings to the POSIX shared memory API.
 
-This library is currently in its embryonic stages, and is not yet ready for public consumption.
+This library is currently in alpha.
+All supported functions are tested; however, `fstat` and `fchown` are not yet implemented.
 
 The POSIX shared memory (or `shm`) API "allows processes to communicate information by sharing a region of memory." (`shm_overview(7)`).
 This library provides a wrapper over the POSIX shm API, providing an interface more comfortable for lispers.
 
 Features include:
 
-- Bindings for `shm_open`, `ftruncate`, `mmap`, `munmap`, `shm_unlink`, and `close`.
+- Bindings for `shm_open`, `ftruncate`, `mmap`, `munmap`, `shm_unlink`, `close`, and `fchmod`.
 - `shm-open` appears more like `open` from the CL standard.
 - `shm-open*`, for creating anonymous shm objects.
 
 Features to provide in the future:
 
-- `fchown`, `fchmod`, `fstat`
+- `fstat`. My current struggle implementing this is that trying to call `ffi:fstat` signals the error that it's undefined.
+- `fchown`. My struggle here is that autowrap doesn't even see this as a symbol.
 - Pre-compiling flags to their foreign integer values when they're `constantp`
 
 ## Usage
@@ -202,10 +204,6 @@ Creates a new mapping in the virtual address space of the calling process.
 
 *offset* -- a nonnegative integer.
 
-Only `MAP_SHARED`, `MAP_PRIVATE` `MAP_FIXED`, and `MAP_ANONYMOUS` is POSIX, or otherwise is supported widely.
-Out of these, only `MAP_SHARED` makes sense to use with shared memory.
-Therefore, in place of providing the *flags* parameter in `mmap(2)`, it will always be `MAP_SHARED`.
-
 *protections* describes the desired memory protection of the mapping. It is either `nil`, or a list of the following keywords:
 
 - `:exec` - pages may be executed.
@@ -213,6 +211,10 @@ Therefore, in place of providing the *flags* parameter in `mmap(2)`, it will alw
 - `:write` - pages may be written.
 
 **mmap** may signal a **shm-error**.
+
+Note: Unlike C's `mmap(2)`, **mmap** does not have a *flags* parameter.
+The only POSIX-compliant, or otherwise widely-supported, flag available that makes sense in context with shm objects is `MAP_SHARED`.
+Therefore, **map** remove the *flags* parameter and calls `mmap(2)` with the constant value `MAP_SHARED`.
 
 ### [Function] **munmap** *addr size* => `(values)`
 
@@ -233,7 +235,7 @@ If the shm object does not exist, or the caller does not have permission to unli
 
 Closes a file descriptor, so that it no longer refers to any shm object and may be reused.
 
-*fd* -- a file descriptor.
+*fd* -- a valid file descriptor.
 
 If *fd* is a bad file descriptor, an I/O error occurs, or the `close()` call was interrupted by a signal, a **shm--error** is signaled.
 
@@ -243,11 +245,17 @@ If *fd* is a bad file descriptor, an I/O error occurs, or the `close()` call was
 
 Retrieve information about the file pointed to by the fd.
 
+*fd* - a valid file descriptor.
+
+*stat* - a property list of the file's properties.
+
+**fstat** may signal a **shm-error**.
+
 ### [Function] **fchmod** *fd permissions* => `(values)`
 
-**TODO** fchmod is not yet implemented.
+Changes the file mode bits of the open shm object.
 
-Changes the mode of the shm object.
+*permissions* -- a list of **permission** keywords.
 
 ### [Function] **fchown** *fd owner group* => `(values)`
 
