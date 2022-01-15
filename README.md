@@ -19,7 +19,8 @@ Features to provide in the future:
 
 - `fstat`. My current struggle implementing this is that trying to call `ffi:fstat` signals the error that it's undefined.
 - `fchown`. My struggle here is that autowrap doesn't even see this as a symbol.
-- Pre-compiling flags to their foreign integer values when they're `constantp`
+- Pre-compiling flags to their foreign integer values when they're `constantp`.
+  This is low-priority, since I don't foresee the shm API being in the middle of a hotspot in code.
 
 ## Usage
 
