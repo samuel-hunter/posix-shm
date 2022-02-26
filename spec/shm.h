@@ -3,7 +3,7 @@
  * Copyright 2021 Samuel Hunter <samuel (at) shunter (dot) xyz>
  * BSD 3-Clause
  */
-#define _POSIX_C_SOURCE 200112L
+#define _POSIX_C_SOURCE 200809L
 
 #include <sys/mman.h> /* shm_open(), shm_unlink(), mmap(), munmap() */
 #include <sys/stat.h> /* S_* constants, fstat() */

@@ -3,9 +3,6 @@
 
 Common Lisp bindings to the POSIX shared memory API.
 
-This library is currently in alpha.
-All supported functions are tested; however, `fstat` and `fchown` are not yet implemented.
-
 The POSIX shared memory (or `shm`) API "allows processes to communicate information by sharing a region of memory." (`shm_overview(7)`).
 This library provides a wrapper over the POSIX shm API, providing an interface more comfortable for lispers.
 
@@ -14,13 +11,6 @@ Features include:
 - Bindings for `shm_open`, `ftruncate`, `mmap`, `munmap`, `shm_unlink`, `close`, and `fchmod`.
 - `shm-open` appears more like `open` from the CL standard.
 - `shm-open*`, for creating anonymous shm objects.
-
-Features to provide in the future:
-
-- `fstat`. My current struggle implementing this is that trying to call `ffi:fstat` signals the error that it's undefined.
-- `fchown`. My struggle here is that autowrap doesn't even see this as a symbol.
-- Pre-compiling flags to their foreign integer values when they're `constantp`.
-  This is low-priority, since I don't foresee the shm API being in the middle of a hotspot in code.
 
 ## Usage
 
@@ -117,6 +107,7 @@ Used for setting the permissions of the shm on `shm-open` and `fchmod`, and corr
 ### [Condition] **shm-error** *(error)*
 
 Raised whenever any POSIX API function fails.
+The errno is accessed by the reader function **shm-error-errno**, and is reported as the errno's `strerror(3)` value.
 
 ### [Function] **shm-open** *name &key (direction :input) if-exists if-does-not-exist permissions* => *fd*
 
@@ -171,11 +162,13 @@ If you're translating from C, each combination of `oflag` would map to:
 - `O_RDWR | O_CREAT | O_TRUNC` - `:direction :io :if-exists :truncate :if-does-not-exist :create`
 - `O_RDWR | O_CREAT | O_EXCL | O_TRUNC` - `:direction :io :if-exists :error`
 
-**shm-open\*** may signal a **shm-error**.
+**shm-open** signals a **shm-error** on failure.
 
 ### [Function] **shm-open\*** *&key (direction :input) permissions (attempts 100)* => *fd*
 
 Creates and opens, and then unlinks, a new POSIX shared memory object.
+This shm object may be shared with another UNIX process by sending its
+file descriptor over a UNIX domain socket via `SCM_RIGHTS`.
 
 *direction* -- one of `:input` or `:io`. The default is `:input`.
 
@@ -183,13 +176,13 @@ Creates and opens, and then unlinks, a new POSIX shared memory object.
 
 *attempts* -- the number of times **shm-open\*** tries to open a shm object before giving up.
 
-**shm-open\*** may signal a **shm-error**.
+**shm-open\*** signals a **shm-error** on failure.
 
 ### [Function] **shm-ftruncate** *fd length* => `(values)`
 
 Cause the shm object specified by *FD* to be truncated to a size of exactly *length* bytes.
 
-**shm-ftruncate** may signal a **shm-error**.
+**shm-ftruncate** signals a **shm-error** on failure.
 
 ### [Function] **mmap** *addr length protections fd offset* => *ptr*
 
@@ -222,7 +215,7 @@ Therefore, **map** remove the *flags* parameter and calls `mmap(2)` with the con
 Deletes the mappings for the specified address range, and cause further references to addresses within the range to generate invalid memory references.
 Closing the shm file descriptor may not automatically un-map the region.
 
-**mmap** may signal a **shm-error**.
+**mmap** signals a **shm-error** on failure.
 
 ### [Function] **shm-unlink** *name* => `(values)`
 
@@ -240,29 +233,39 @@ Closes a file descriptor, so that it no longer refers to any shm object and may 
 
 If *fd* is a bad file descriptor, an I/O error occurs, or the `close()` call was interrupted by a signal, a **shm--error** is signaled.
 
-### [Function] **fstat** *fd* => *stat*
-
-**TODO** fstat is not yet implemented.
-
-Retrieve information about the file pointed to by the fd.
-
-*fd* - a valid file descriptor.
-
-*stat* - a property list of the file's properties.
-
-**fstat** may signal a **shm-error**.
-
 ### [Function] **fchmod** *fd permissions* => `(values)`
 
 Changes the file mode bits of the open shm object.
 
 *permissions* -- a list of **permission** keywords.
 
-### [Function] **fchown** *fd owner group* => `(values)`
+**fchmod** signals a **shm-error** on failure.
 
-**TODO** fchown is not yet implemented.
+### [Function] **fstat** *fd* => *stats*
 
-Changes the ownership of the shm object
+Returns information about a file as a 10-item list with the following integer fields:
+
+- The ID of device containing the file
+- The Inode number
+- The file type and mode
+- The number of hard links
+- The user ID of the owner
+- The group ID of the owner
+- The device ID of the owner
+- The total size, in bytes
+- The block size for filesystem I/O
+- The number of 512B blocks allocated
+
+**fstat** signals a **shm-error** on failure.
+
+### [Function] **fchown** *fd owner-id group-id* => `(values)`
+
+Changes the ownership of the open shm object to the given owner and
+group ID's (mapped to users and groups in their respective `passwd(5)`
+and `group(5)` files).
+
+If OWNER-ID or GROUP-ID is specified as NIL, then that ID is not
+changed.
 
 ### [Macro] **with-open-shm** *(var &rest options) &body body*
 

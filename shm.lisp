@@ -6,6 +6,7 @@
                     (#:a #:alexandria))
   (:use #:cl)
   (:export #:shm-error
+           #:shm-error-errno
            #:shm-open
            #:shm-open*
            #:shm-ftruncate
@@ -27,9 +28,10 @@
 
 
 (define-condition shm-error (error)
-  ((errno :initarg :errno))
+  ((errno :initarg :errno :reader shm-error-errno
+          :type integer))
   (:report (lambda (c s)
-             (princ (ffi:strerror (slot-value c 'errno)) s))))
+             (princ (ffi:strerror (shm-error-errno c)) s))))
 
 (defun raise-shm-error ()
   (error 'shm-error :errno ffi:*errno*))
@@ -188,15 +190,31 @@
     (raise-shm-error))
   (values))
 
-;;; XXX: cffi signals fstat() as an undefined function.
-(defun fstat (fd)
-  (declare (ignore fd))
-  (error "TODO: Unimplemented"))
+(defconstant +negative-one+
+             (1- (ash 1 (* 8 (autowrap:sizeof 'ffi:uid-t))))
+             "\"Negative one\", represented by a uid_t.")
 
-;; XXX: autowrap can't find fchown().
+(defun fstat (fd)
+  (autowrap:with-alloc (stats '(:struct (ffi:stat)))
+    (when (minusp (ffi:fstat fd stats))
+      (raise-shm-error))
+    (list (ffi:stat.st-dev stats)
+          (ffi:stat.st-ino stats)
+          (ffi:stat.st-mode stats)
+          (ffi:stat.st-nlink stats)
+          (ffi:stat.st-uid stats)
+          (ffi:stat.st-gid stats)
+          (ffi:stat.st-rdev stats)
+          (ffi:stat.st-size stats)
+          (ffi:stat.st-blksize stats)
+          (ffi:stat.st-blocks stats))))
+
 (defun fchown (fd owner-id group-id)
-  (declare (ignore fd owner-id group-id))
-  (error "TODO: Unimplemented"))
+  (when (minusp (ffi:fchown fd
+                            (or owner-id +negative-one+)
+                            (or group-id +negative-one+)))
+    (raise-shm-error))
+  (values))
 
 (defun %fchmod (fd mode)
   (when (minusp (ffi:fchmod fd mode))
