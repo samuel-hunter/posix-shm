@@ -1,5 +1,6 @@
 # posix-shm
 [![builds.sr.ht status](https://builds.sr.ht/~shunter/posix-shm/commits/test.yml.svg)](https://builds.sr.ht/~shunter/posix-shm/commits/test.yml)
+[![Quicklisp status](https://quickdocs.org/badge/posix-shm.svg)](https://quickdocs.org/posix-shm)
 
 Common Lisp bindings to the POSIX shared memory API.
 
@@ -13,14 +14,9 @@ Features include:
 - **shm-open\***, for creating anonymous shm objects.
 - **with-open-shm**, **with-mmap** and similar **with-** macros for safely accessing resources with dynamic extent.
 
-## Usage
+## Installation and Usage
 
-Posix-shm is not yet available on Quicklisp:
-
-```sh
-$ cd ~/common-lisp/ # Or wherever you store your systems
-$ git clone https://git.sr.ht/~shunter/posix-shm
-```
+Install posix-shm with Quicklisp:
 
 ```lisp
 (ql:quickload :posix-shm)
