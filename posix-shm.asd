@@ -7,7 +7,7 @@
   :description "POSIX shared memory"
   :author "Samuel Hunter"
   :license  "BSD 3-Clause"
-  :version "0.0.3"
+  :version "0.0.4"
 
   :homepage "https://sr.ht/~shunter/posix-shm/"
   :source-control (:git "https://git.sr.ht/~shunter/posix-shm")
