@@ -18,29 +18,36 @@
 (autowrap:c-include '(#:posix-shm #:spec "shm.h")
                     :spec-path '(#:posix-shm #:spec)
                     :exclude-definitions (".*")
-                    :include-definitions ("_t$"
+                    :include-definitions (;; types
                                           "^__"
-                                          "stat"
+                                          "^stat$"
+                                          "^timespec$"
+                                          "_t$"
 
-                                          "^O_*" ;; open flags
-                                          "^S_*" ;; permission bits
-                                          "^PROT_*" ;; map protections
+                                          ;; Constants
+                                          "^O_" ;; open flags
+                                          "^S_" ;; permission bits
+                                          "^PROT_" ;; map protections
                                           "^MAP_SHARED$"
                                           "^EEXIST$"
                                           "^EINTR$"
                                           "^ENOENT$"
 
-                                          "^shm_open$"
+                                          ;; syscalls
                                           "^ftruncate$"
                                           "^mmap$"
                                           "^munmap$"
-                                          "^shm_unlink$"
                                           "^close$"
                                           "^fstat$"
                                           "^fchown$"
                                           "^fchmod$"
 
-                                          "^strerror$"))
+                                          ;; libc
+                                          "^strerror$"
+
+                                          ;; librt
+                                          "^shm_open$"
+                                          "^shm_unlink$"))
 
 (cffi:defcvar "errno" :int)
 
