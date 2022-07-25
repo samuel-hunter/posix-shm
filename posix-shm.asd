@@ -29,7 +29,7 @@
   :description "Test suite for posix-shm"
   :author "Samuel Hunter"
   :license "BSD 3-Clause"
-  :version "0.0.3"
+  :version "0.0.4"
 
   :depends-on (#:posix-shm
                #:parachute)
